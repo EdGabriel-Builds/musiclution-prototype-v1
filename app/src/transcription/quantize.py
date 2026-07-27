@@ -12,6 +12,22 @@ from typing import List, Dict
 
 import numpy as np
 
+# Constants for BPM estimation
+DEFAULT_BPM = 120.0
+MIN_INTERVAL_THRESHOLD = 1e-3
+BPM_CLAMP_MIN = 40.0
+BPM_CLAMP_MAX = 200.0
+SECONDS_TO_BEATS_FACTOR = 60.0  # Beats per minute constant
+
+# Constants for duration quantization
+DURATION_MAP = [
+    (4.0, "whole"),
+    (2.0, "half"),
+    (1.0, "quarter"),
+    (0.5, "eighth"),
+    (0.25, "sixteenth"),
+]
+
 
 def estimate_bpm(notes: List[Dict]) -> float:
     """
@@ -22,7 +38,7 @@ def estimate_bpm(notes: List[Dict]) -> float:
     - Take the median IOI.
     - Assume each IOI corresponds to a quarter note.
     - BPM = 60 / median_ioi.
-    - If insufficient notes to compute IOI, return a default of 120.0.
+    - If insufficient notes to compute IOI, return a default of DEFAULT_BPM.
 
     Parameters
     ----------
@@ -37,23 +53,23 @@ def estimate_bpm(notes: List[Dict]) -> float:
     """
     if len(notes) < 2:
         # Not enough data to estimate tempo; return a moderate default.
-        return 120.0
+        return DEFAULT_BPM
 
     # Extract start times and sort them.
     starts = sorted(note["start"] for note in notes)
     # Compute inter-onset intervals.
     ioi = np.diff(starts)
     # Filter out zero or near-zero intervals (e.g., simultaneous notes).
-    ioi = ioi[ioi > 1e-3]
+    ioi = ioi[ioi > MIN_INTERVAL_THRESHOLD]
     if len(ioi) == 0:
-        return 120.0
+        return DEFAULT_BPM
     median_ioi = float(np.median(ioi))
     # Avoid division by zero or extremely small values.
     if median_ioi <= 0:
-        return 120.0
-    bpm = 60.0 / median_ioi
+        return DEFAULT_BPM
+    bpm = SECONDS_TO_BEATS_FACTOR / median_ioi
     # Clamp to a reasonable range to avoid absurd values.
-    bpm = max(40.0, min(200.0, bpm))
+    bpm = max(BPM_CLAMP_MIN, min(BPM_CLAMP_MAX, bpm))
     return bpm
 
 
@@ -79,16 +95,8 @@ def quantize_duration(beat_duration: float) -> str:
         String representation of the quantized note value:
         "whole", "half", "quarter", "eighth", or "sixteenth".
     """
-    # Define the note values in beats and their string representations
-    note_values = [
-        (4.0, "whole"),
-        (2.0, "half"),
-        (1.0, "quarter"),
-        (0.5, "eighth"),
-        (0.25, "sixteenth"),
-    ]
     # Find the note value with the smallest absolute difference
-    closest = min(note_values, key=lambda x: abs(x[0] - beat_duration))
+    closest = min(DURATION_MAP, key=lambda x: abs(x[0] - beat_duration))
     return closest[1]
 
 
@@ -141,7 +149,7 @@ def quantize_notes(
     if bpm is None:
         bpm = estimate_bpm(notes)
     # Convert seconds to beats: beats = seconds * (BPM / 60).
-    beats_per_second = bpm / 60.0
+    beats_per_second = bpm / SECONDS_TO_BEATS_FACTOR
 
     quantized: List[Dict] = []
     for note in notes:

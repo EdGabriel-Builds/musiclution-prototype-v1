@@ -55,8 +55,12 @@ def test_quantize_notes_api_contract(melody_dir):
     import copy
     input_notes_copy = copy.deepcopy(input_notes)
 
-    # Call the function under test
-    output_notes = quantize_notes(input_notes, bpm=120.0)  # bpm value doesn't matter for the stub
+    # Call the function under test with a known BPM for predictable results
+    bpm_value = 120.0
+    output_notes = quantize_notes(input_notes, bpm=bpm_value)
+
+    # Calculate expected beat conversion factor
+    beats_per_second = bpm_value / 60.0  # 120 BPM = 2 beats per second
 
     # 1. Output is a list
     assert isinstance(output_notes, list), "quantize_notes should return a list"
@@ -81,12 +85,17 @@ def test_quantize_notes_api_contract(melody_dir):
         for field in required_new_fields:
             assert field in out_note, f"missing new field '{field}' in note {i}"
 
-        # Specific placeholder values (as per the stub implementation)
-        assert out_note["beat_start"] == out_note["start"], (
-            f"beat_start should equal start in note {i}"
+        # Validate calculated values based on BPM
+        expected_beat_start = float(in_note["start"]) * beats_per_second
+        expected_beat_duration = float(in_note["duration"]) * beats_per_second
+
+        assert out_note["beat_start"] == expected_beat_start, (
+            f"beat_start incorrect in note {i}: "
+            f"expected {expected_beat_start}, got {out_note['beat_start']}"
         )
-        assert out_note["beat_duration"] == out_note["duration"], (
-            f"beat_duration should equal duration in note {i}"
+        assert out_note["beat_duration"] == expected_beat_duration, (
+            f"beat_duration incorrect in note {i}: "
+            f"expected {expected_beat_duration}, got {out_note['beat_duration']}"
         )
         assert out_note["quantized_duration"] == "unknown", (
             f"quantized_duration should be 'unknown' in note {i}"

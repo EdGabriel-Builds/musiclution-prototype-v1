@@ -69,8 +69,9 @@ def test_quantize_notes_preserves_original_fields():
     assert out_note["amplitude"] == 0.7
 
 
-def test_quantize_notes_adds_placeholder_fields():
-    """Placeholder fields are added with correct values."""
+def test_quantize_notes_adds_placeholder_fields_with_explicit_bpm():
+    """New fields are added with correct values when BPM is explicitly provided."""
+    # Use a known BPM to make test deterministic
     input_notes = [
         {
             "pitch_name": "E4",
@@ -82,7 +83,8 @@ def test_quantize_notes_adds_placeholder_fields():
         }
     ]
 
-    output = quantize_notes(input_notes)
+    # With BPM=120.0: 1 second = 2 beats (since 120 BPM = 2 beats per second)
+    output = quantize_notes(input_notes, bpm=120.0)
     out_note = output[0]
 
     # New fields exist
@@ -90,9 +92,9 @@ def test_quantize_notes_adds_placeholder_fields():
     assert "beat_duration" in out_note
     assert "quantized_duration" in out_note
 
-    # Placeholder values
-    assert out_note["beat_start"] == 1.0  # copied from start
-    assert out_note["beat_duration"] == 1.0  # copied from duration
+    # With BPM=120.0: beat = seconds * (BPM/60) = seconds * 2
+    assert out_note["beat_start"] == 2.0  # 1.0 * 2
+    assert out_note["beat_duration"] == 2.0  # 1.0 * 2
     assert out_note["quantized_duration"] == "unknown"
 
 
@@ -101,8 +103,9 @@ def test_quantize_notes_handles_empty_list():
     assert quantize_notes([]) == []
 
 
-def test_quantize_notes_multiple_notes():
-    """Works with multiple notes."""
+def test_quantize_notes_multiple_notes_with_explicit_bpm():
+    """Works with multiple notes when BPM is explicitly provided."""
+    # Use a known BPM to make test deterministic
     input_notes = [
         {
             "pitch_name": "C4",
@@ -122,24 +125,52 @@ def test_quantize_notes_multiple_notes():
         },
     ]
 
-    output = quantize_notes(input_notes)
+    # With BPM=60.0: 1 second = 1 beat (since 60 BPM = 1 beat per second)
+    output = quantize_notes(input_notes, bpm=60.0)
     assert len(output) == 2
 
     # First note
     assert output[0]["pitch_name"] == "C4"
-    assert output[0]["beat_start"] == 0.0
-    assert output[0]["beat_duration"] == 1.0
+    assert output[0]["beat_start"] == 0.0  # 0.0 * 1
+    assert output[0]["beat_duration"] == 1.0  # 1.0 * 1
     assert output[0]["quantized_duration"] == "unknown"
 
     # Second note
     assert output[1]["pitch_name"] == "D4"
-    assert output[1]["beat_start"] == 1.0
-    assert output[1]["beat_duration"] == 1.0
+    assert output[1]["beat_start"] == 1.0  # 1.0 * 1
+    assert output[1]["beat_duration"] == 1.0  # 1.0 * 1
     assert output[1]["quantized_duration"] == "unknown"
 
 
-def test_quantize_notes_bpm_argument_ignored():
-    """bpm argument is accepted but ignored in this stub."""
+def test_quantize_notes_uses_provided_bpm_over_estimate():
+    """When bpm is provided, it is used instead of estimating."""
+    input_notes = [
+        {
+            "pitch_name": "C4",
+            "midi": 60,
+            "start": 1.0,  # Non-zero start to test BPM effect
+            "end": 2.0,
+            "duration": 1.0,
+            "amplitude": 0.8,
+        }
+    ]
+
+    # With a single note, estimate_bpm() returns 120.0 (default)
+    # But if we provide bpm=60.0, it should use 60.0 instead
+    estimated_bpm_result = quantize_notes(input_notes, bpm=None)  # Should estimate ~120.0
+    provided_bpm_result = quantize_notes(input_notes, bpm=60.0)  # Should use 60.0
+
+    # The beat values should be different due to different BPM
+    assert estimated_bpm_result[0]["beat_start"] != provided_bpm_result[0]["beat_start"]
+    assert estimated_bpm_result[0]["beat_duration"] != provided_bpm_result[0]["beat_duration"]
+
+    # With bpm=60.0: 1 second = 1 beat
+    assert provided_bpm_result[0]["beat_start"] == 1.0  # 1.0 * 1
+    assert provided_bpm_result[0]["beat_duration"] == 1.0  # 1.0 * 1
+
+
+def test_quantize_notes_bpm_parameter_behavior():
+    """Test that bpm parameter is used when provided, otherwise estimated."""
     input_notes = [
         {
             "pitch_name": "F4",
@@ -151,9 +182,23 @@ def test_quantize_notes_bpm_argument_ignored():
         }
     ]
 
-    # Should not raise and should produce same output regardless of bpm
-    out1 = quantize_notes(input_notes, bpm=60.0)
-    out2 = quantize_notes(input_notes, bpm=120.0)
-    out3 = quantize_notes(input_notes, bpm=None)
+    # With single note, estimation returns default 120.0
+    # Test explicit values
+    out_60 = quantize_notes(input_notes, bpm=60.0)   # 1 sec = 1 beat
+    out_120 = quantize_notes(input_notes, bpm=120.0) # 1 sec = 2 beats
+    out_none = quantize_notes(input_notes, bpm=None) # Should estimate ~120.0
 
-    assert out1 == out2 == out3
+    # With bpm=60.0: beat = seconds * 1
+    assert out_60[0]["beat_start"] == 0.0   # 0.0 * 1
+    assert out_60[0]["beat_duration"] == 1.0 # 1.0 * 1
+
+    # With bpm=120.0: beat = seconds * 2
+    assert out_120[0]["beat_start"] == 0.0   # 0.0 * 2
+    assert out_120[0]["beat_duration"] == 2.0 # 1.0 * 2
+
+    # With bpm=None: should estimate ~120.0 (single note -> default 120.0)
+    assert out_none[0]["beat_start"] == 0.0   # 0.0 * 2
+    assert out_none[0]["beat_duration"] == 2.0 # 1.0 * 2
+
+    # 60 and 120 should give different results
+    assert out_60[0]["beat_duration"] != out_120[0]["beat_duration"]

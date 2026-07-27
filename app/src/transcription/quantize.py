@@ -1,9 +1,9 @@
 """
-Milestone 1: Quantization stub with BPM estimation.
+Milestone 2: Quantization with duration quantization.
 
-Provides a placeholder function for note quantization that preserves all
-existing note fields and adds beat-aligned fields using a simple BPM
-estimate (or provided BPM).
+Provides a function for note quantization that preserves all
+existing note fields, adds beat-aligned fields, and quantizes
+the duration to the nearest musical note value.
 """
 
 from __future__ import annotations
@@ -57,25 +57,61 @@ def estimate_bpm(notes: List[Dict]) -> float:
     return bpm
 
 
+def quantize_duration(beat_duration: float) -> str:
+    """
+    Quantize a duration in beats to the nearest musical note value.
+
+    Supported note values (in beats):
+        whole: 4.0
+        half: 2.0
+        quarter: 1.0
+        eighth: 0.5
+        sixteenth: 0.25
+
+    Parameters
+    ----------
+    beat_duration : float
+        Duration in beats to be quantized.
+
+    Returns
+    -------
+    str
+        String representation of the quantized note value:
+        "whole", "half", "quarter", "eighth", or "sixteenth".
+    """
+    # Define the note values in beats and their string representations
+    note_values = [
+        (4.0, "whole"),
+        (2.0, "half"),
+        (1.0, "quarter"),
+        (0.5, "eighth"),
+        (0.25, "sixteenth"),
+    ]
+    # Find the note value with the smallest absolute difference
+    closest = min(note_values, key=lambda x: abs(x[0] - beat_duration))
+    return closest[1]
+
+
 def quantize_notes(
     notes: List[Dict],
     bpm: float | None = None,
 ) -> List[Dict]:
     """
-    Quantize note onsets and durations to a musical grid (stub implementation).
+    Quantize note onsets and durations to a musical grid.
 
     This function returns a new list of note dictionaries with the same fields
     as the input, plus three additional fields for beat-aligned timing:
         - beat_start: start time in beats (computed using BPM)
         - beat_duration: duration in beats (computed using BPM)
-        - quantized_duration: quantized duration in beats (placeholder: "unknown")
+        - quantized_duration: quantized duration in beats as a string (
+            "whole", "half", "quarter", "eighth", or "sixteenth")
 
     If ``bpm`` is provided, that value is used; otherwise, a simple BPM
     estimate is derived from the note onsets via :func:`estimate_bpm`.
 
     The actual quantization logic (e.g., rounding to the nearest grid)
-    will be implemented in a later milestone. For now, we convert time
-    values to beats using the BPM but do not quantize.
+    is applied only to the duration for now. The start time is converted
+    to beats but not quantized.
 
     Parameters
     ----------
@@ -99,7 +135,7 @@ def quantize_notes(
     - The function does not modify the input ``notes`` list.
     - All original fields are preserved exactly as-is.
     - The three new fields are added to each note dictionary.
-    - ``quantized_duration`` remains a placeholder ("unknown") in this stub.
+    - ``quantized_duration`` is a string representing the quantized note value.
     """
     # Use provided BPM or estimate one from the notes.
     if bpm is None:
@@ -112,9 +148,11 @@ def quantize_notes(
         # Create a shallow copy of the note dictionary to avoid mutating input
         new_note = note.copy()
         # Convert start and duration to beats.
-        new_note["beat_start"] = float(note["start"]) * beats_per_second
-        new_note["beat_duration"] = float(note["duration"]) * beats_per_second
-        # Placeholder for quantized duration (to be implemented later).
-        new_note["quantized_duration"] = "unknown"
+        raw_beat_start = float(note["start"]) * beats_per_second
+        raw_beat_duration = float(note["duration"]) * beats_per_second
+        new_note["beat_start"] = raw_beat_start
+        new_note["beat_duration"] = raw_beat_duration
+        # Quantize the duration to the nearest musical note value.
+        new_note["quantized_duration"] = quantize_duration(raw_beat_duration)
         quantized.append(new_note)
     return quantized

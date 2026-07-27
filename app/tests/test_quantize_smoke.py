@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from copy import deepcopy
 
 # Make src/transcription importable without installing the package.
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +44,7 @@ def test_quantize_notes_api_contract(melody_dir):
     - Output is a list
     - Length matches input
     - Original note fields are preserved
-    - New quantization fields exist
+    - New quantization fields exist and have correct types/values
     - Input list is not mutated
     """
     # Get real notes from the detector (using the audio file)
@@ -52,8 +53,7 @@ def test_quantize_notes_api_contract(melody_dir):
     assert len(input_notes) > 0, "we expect some notes to be detected"
 
     # Keep a deep copy of the input to verify immutability later
-    import copy
-    input_notes_copy = copy.deepcopy(input_notes)
+    input_notes_copy = deepcopy(input_notes)
 
     # Call the function under test with a known BPM for predictable results
     bpm_value = 120.0
@@ -69,7 +69,14 @@ def test_quantize_notes_api_contract(melody_dir):
     assert len(output_notes) == len(input_notes), "output length should match input length"
 
     # 3. Each output note has the expected fields
-    required_original_fields = {"pitch_name", "midi", "start", "end", "duration", "amplitude"}
+    required_original_fields = {
+        "pitch_name",
+        "midi",
+        "start",
+        "end",
+        "duration",
+        "amplitude",
+    }
     required_new_fields = {"beat_start", "beat_duration", "quantized_duration"}
 
     for i, (in_note, out_note) in enumerate(zip(input_notes, output_notes)):
@@ -97,8 +104,22 @@ def test_quantize_notes_api_contract(melody_dir):
             f"beat_duration incorrect in note {i}: "
             f"expected {expected_beat_duration}, got {out_note['beat_duration']}"
         )
-        assert out_note["quantized_duration"] == "unknown", (
-            f"quantized_duration should be 'unknown' in note {i}"
+
+        # quantized_duration should be one of the allowed string values
+        allowed_durations = {"whole", "half", "quarter", "eighth", "sixteenth"}
+        assert out_note["quantized_duration"] in allowed_durations, (
+            f"quantized_duration must be one of {allowed_durations}, "
+            f"got {out_note['quantized_duration']} in note {i}"
+        )
+
+        # beat_start should be numeric (int or float)
+        assert isinstance(out_note["beat_start"], (int, float)), (
+            f"beat_start should be numeric in note {i}: got {type(out_note['beat_start'])}"
+        )
+
+        # beat_duration should be positive
+        assert out_note["beat_duration"] > 0, (
+            f"beat_duration should be positive in note {i}: got {out_note['beat_duration']}"
         )
 
     # 4. Input list is unchanged (we compare the deep copy)

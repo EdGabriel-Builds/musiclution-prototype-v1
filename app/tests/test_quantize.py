@@ -69,8 +69,8 @@ def test_quantize_notes_preserves_original_fields():
     assert out_note["amplitude"] == 0.7
 
 
-def test_quantize_notes_adds_placeholder_fields_with_explicit_bpm():
-    """New fields are added with correct values when BPM is explicitly provided."""
+def test_quantize_notes_adds_beat_fields_with_explicit_bpm():
+    """New beat fields are added with correct values when BPM is explicitly provided."""
     # Use a known BPM to make test deterministic
     input_notes = [
         {
@@ -95,7 +95,8 @@ def test_quantize_notes_adds_placeholder_fields_with_explicit_bpm():
     # With BPM=120.0: beat = seconds * (BPM/60) = seconds * 2
     assert out_note["beat_start"] == 2.0  # 1.0 * 2
     assert out_note["beat_duration"] == 2.0  # 1.0 * 2
-    assert out_note["quantized_duration"] == "unknown"
+    # With duration 1.0 seconds -> 2.0 beats -> quantizes to "half" (2.0 beats)
+    assert out_note["quantized_duration"] == "half"
 
 
 def test_quantize_notes_handles_empty_list():
@@ -120,7 +121,7 @@ def test_quantize_notes_multiple_notes_with_explicit_bpm():
             "midi": 62,
             "start": 1.0,
             "end": 2.0,
-            "duration": 1.0,
+            "duration": 0.5,
             "amplitude": 0.9,
         },
     ]
@@ -129,17 +130,17 @@ def test_quantize_notes_multiple_notes_with_explicit_bpm():
     output = quantize_notes(input_notes, bpm=60.0)
     assert len(output) == 2
 
-    # First note
+    # First note: duration 1.0 seconds -> 1.0 beat -> "quarter"
     assert output[0]["pitch_name"] == "C4"
     assert output[0]["beat_start"] == 0.0  # 0.0 * 1
     assert output[0]["beat_duration"] == 1.0  # 1.0 * 1
-    assert output[0]["quantized_duration"] == "unknown"
+    assert output[0]["quantized_duration"] == "quarter"
 
-    # Second note
+    # Second note: duration 0.5 seconds -> 0.5 beat -> "eighth"
     assert output[1]["pitch_name"] == "D4"
     assert output[1]["beat_start"] == 1.0  # 1.0 * 1
-    assert output[1]["beat_duration"] == 1.0  # 1.0 * 1
-    assert output[1]["quantized_duration"] == "unknown"
+    assert output[1]["beat_duration"] == 0.5  # 0.5 * 1
+    assert output[1]["quantized_duration"] == "eighth"
 
 
 def test_quantize_notes_uses_provided_bpm_over_estimate():
@@ -167,6 +168,8 @@ def test_quantize_notes_uses_provided_bpm_over_estimate():
     # With bpm=60.0: 1 second = 1 beat
     assert provided_bpm_result[0]["beat_start"] == 1.0  # 1.0 * 1
     assert provided_bpm_result[0]["beat_duration"] == 1.0  # 1.0 * 1
+    # Duration 1.0 seconds -> 1.0 beat -> "quarter"
+    assert provided_bpm_result[0]["quantized_duration"] == "quarter"
 
 
 def test_quantize_notes_bpm_parameter_behavior():
@@ -177,7 +180,7 @@ def test_quantize_notes_bpm_parameter_behavior():
             "midi": 65,
             "start": 0.0,
             "end": 1.0,
-            "duration": 1.0,
+            "duration": 0.5,
             "amplitude": 0.5,
         }
     ]
@@ -190,15 +193,40 @@ def test_quantize_notes_bpm_parameter_behavior():
 
     # With bpm=60.0: beat = seconds * 1
     assert out_60[0]["beat_start"] == 0.0   # 0.0 * 1
-    assert out_60[0]["beat_duration"] == 1.0 # 1.0 * 1
+    assert out_60[0]["beat_duration"] == 0.5 # 0.5 * 1
+    # Duration 0.5 seconds -> 0.5 beat -> "eighth"
+    assert out_60[0]["quantized_duration"] == "eighth"
 
     # With bpm=120.0: beat = seconds * 2
     assert out_120[0]["beat_start"] == 0.0   # 0.0 * 2
-    assert out_120[0]["beat_duration"] == 2.0 # 1.0 * 2
+    assert out_120[0]["beat_duration"] == 1.0 # 0.5 * 2
+    # Duration 0.5 seconds -> 1.0 beat -> "quarter"
+    assert out_120[0]["quantized_duration"] == "quarter"
 
     # With bpm=None: should estimate ~120.0 (single note -> default 120.0)
     assert out_none[0]["beat_start"] == 0.0   # 0.0 * 2
-    assert out_none[0]["beat_duration"] == 2.0 # 1.0 * 2
+    assert out_none[0]["beat_duration"] == 1.0 # 0.5 * 2
+    # Duration 0.5 seconds -> 1.0 beat -> "quarter"
+    assert out_none[0]["quantized_duration"] == "quarter"
 
     # 60 and 120 should give different results
     assert out_60[0]["beat_duration"] != out_120[0]["beat_duration"]
+    assert out_60[0]["quantized_duration"] != out_120[0]["quantized_duration"]
+
+
+def test_quantize_duration_helper():
+    """Test the quantize_duration helper function directly."""
+    from quantize import quantize_duration
+
+    # Test exact matches
+    assert quantize_duration(4.0) == "whole"
+    assert quantize_duration(2.0) == "half"
+    assert quantize_duration(1.0) == "quarter"
+    assert quantize_duration(0.5) == "eighth"
+    assert quantize_duration(0.25) == "sixteenth"
+
+    # Test rounding
+    assert quantize_duration(0.3) == "sixteenth"  # closer to 0.25 than 0.5
+    assert quantize_duration(0.4) == "eighth"     # 0.4 is closer to 0.5 than 0.25
+    # 0.75 is exactly between 0.5 and 1.0 -> tie; our implementation picks the first encountered (1.0 -> quarter)
+    assert quantize_duration(0.75) == "quarter"

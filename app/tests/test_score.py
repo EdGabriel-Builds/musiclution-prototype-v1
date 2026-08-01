@@ -13,7 +13,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from score.score import Note, Measure, Score  # noqa: E402
+from score.score import Note, Measure, Score, Rest  # noqa: E402
 
 
 def test_note_creation():
@@ -80,7 +80,7 @@ def test_measure_creation():
 
     measure = Measure(
         number=1,
-        notes=[note1, note2],
+        events=[note1, note2],
         time_signature_top=4,
         time_signature_bottom=4
     )
@@ -196,8 +196,8 @@ def test_get_all_notes():
     note3 = Note("E4", 64, 2.0, 1.0)
 
     # Add them to measures
-    measure1 = Measure(number=1, notes=[note1, note2])
-    measure2 = Measure(number=2, notes=[note3])
+    measure1 = Measure(number=1, events=[note1, note2])
+    measure2 = Measure(number=2, events=[note3])
 
     score.add_measure(measure1)
     score.add_measure(measure2)
@@ -207,6 +207,85 @@ def test_get_all_notes():
     assert all_notes[0].pitch_name == "C4"
     assert all_notes[1].pitch_name == "D4"
     assert all_notes[2].pitch_name == "E4"
+
+
+def test_measure_only_rests():
+    """Test creating a measure with only rests."""
+    rest1 = Rest(start_time=0.0, duration=2.0)
+    rest2 = Rest(start_time=2.0, duration=2.0)
+
+    measure = Measure(
+        number=1,
+        events=[rest1, rest2],
+        time_signature_top=4,
+        time_signature_bottom=4
+    )
+
+    assert measure.number == 1
+    assert len(measure.rests) == 2
+    assert measure.rests[0].start_time == 0.0
+    assert measure.rests[0].duration == 2.0
+    assert measure.rests[1].start_time == 2.0
+    assert measure.rests[1].duration == 2.0
+    assert measure.time_signature_top == 4
+    assert measure.time_signature_bottom == 4
+
+
+def test_measure_mixed_notes_and_rests():
+    """Test creating a measure with both notes and rests."""
+    note = Note("C4", 60, 0.0, 1.0)
+    rest = Rest(start_time=1.0, duration=2.0)
+    note2 = Note("E4", 64, 3.0, 1.0)
+
+    # Intentionally create them out of order to test sorting
+    measure = Measure(
+        number=1,
+        events=[note2, rest, note],  # note2 (3.0), rest (1.0), note (0.0)
+        time_signature_top=4,
+        time_signature_bottom=4
+    )
+
+    assert measure.number == 1
+    # Total events: 2 notes + 1 rest
+    assert len(measure.events) == 3
+    assert len(measure.notes) == 2
+    assert len(measure.rests) == 1
+    # After sorting by start_time, the order should be: note (0.0), rest (1.0), note2 (3.0)
+    assert isinstance(measure.events[0], Note)
+    assert measure.events[0].start_time == 0.0
+    assert isinstance(measure.events[1], Rest)
+    assert measure.events[1].start_time == 1.0
+    assert measure.events[1].duration == 2.0
+    assert isinstance(measure.events[2], Note)
+    assert measure.events[2].pitch_name == "E4"
+    assert measure.events[2].start_time == 3.0
+
+
+def test_events_sorted_by_start_time():
+    """Test that events in a measure are sorted by start_time."""
+    # Create events with out-of-order start times
+    event1 = Rest(start_time=3.0, duration=1.0)
+    event2 = Note("D4", 62, 1.0, 1.0)
+    event3 = Rest(start_time=0.0, duration=2.0)
+    event4 = Note("F4", 65, 2.0, 1.0)
+
+    measure = Measure(
+        number=1,
+        events=[event1, event2, event3, event4],
+        time_signature_top=4,
+        time_signature_bottom=4
+    )
+
+    # Check that the events are sorted by start_time
+    assert len(measure.events) == 4
+    assert isinstance(measure.events[0], Rest)
+    assert measure.events[0].start_time == 0.0  # event3
+    assert isinstance(measure.events[1], Note)
+    assert measure.events[1].start_time == 1.0  # event2
+    assert isinstance(measure.events[2], Note)
+    assert measure.events[2].start_time == 2.0  # event4
+    assert isinstance(measure.events[3], Rest)
+    assert measure.events[3].start_time == 3.0  # event1
 
 
 if __name__ == "__main__":

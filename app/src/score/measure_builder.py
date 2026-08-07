@@ -12,6 +12,28 @@ from typing import List, Dict
 from score.score import Note, Measure
 
 
+# Mapping from quantized duration string to beats (quarter note beats)
+_DURATION_TO_BEATS = {
+    "whole": 4.0,
+    "half": 2.0,
+    "quarter": 1.0,
+    "eighth": 0.5,
+    "sixteenth": 0.25,
+}
+
+
+def _duration_from_quantized(note_dict: Dict) -> float:
+    """
+    Return duration in beats for a note, preferring the quantized duration if available.
+    """
+    if "quantized_duration" in note_dict:
+        qd = note_dict["quantized_duration"]
+        if qd in _DURATION_TO_BEATS:
+            return float(_DURATION_TO_BEATS[qd])
+    # Fallback to raw beat_duration (should already be quantized-ish, but we keep for safety)
+    return float(note_dict.get("beat_duration", 0.0))
+
+
 def build_measures(quantized_notes: List[Dict]) -> List:
     """
     Convert quantized notes into Measure objects with 4/4 time signature.
@@ -21,7 +43,8 @@ def build_measures(quantized_notes: List[Dict]) -> List:
             - pitch_name: Scientific pitch notation (e.g., "C4")
             - midi: MIDI note number (0-127)
             - beat_start: Start time in beats (quarter note beats)
-            - beat_duration: Duration in beats (quarter note beats)
+            - beat_duration: Duration in beats (quarter note beats) (raw, for fallback)
+            - quantized_duration: String of quantized note value ("whole","half",etc.) (optional)
             - amplitude: Velocity/amplitude (0.0-1.0)
 
     Returns:
@@ -44,7 +67,7 @@ def build_measures(quantized_notes: List[Dict]) -> List:
         pitch_name = note_dict["pitch_name"]
         midi = note_dict["midi"]
         note_start = float(note_dict["beat_start"])
-        note_duration = float(note_dict["beat_duration"])
+        note_duration = _duration_from_quantized(note_dict)  # use quantized duration if available
         amplitude = note_dict["amplitude"]
 
         # Clamp amplitude to valid range [0.0, 1.0]

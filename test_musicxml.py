@@ -82,8 +82,44 @@ def test_rests():
     print(xml_output)
     print()
 
+
+def test_dotted_quarter_export():
+    """Focused regression test for dotted quarter note export."""
+    score = Score(title="Dotted Quarter Test", composer="Test Composer", tempo_bpm=120.0)
+
+    # Single measure with a dotted quarter note (1.5 beats) and a quarter note to fill the measure
+    m1 = Measure(number=1, time_signature_top=4, time_signature_bottom=4)
+    # Dotted quarter note C4 (1.5 beats)
+    m1.add_event(Note(pitch_name="C4", midi=60, start_time=0.0, duration=1.5, velocity=0.8))
+    # Quarter note D4 (1.0 beat) to fill the measure
+    m1.add_event(Note(pitch_name="D4", midi=62, start_time=1.5, duration=0.5, velocity=0.8))   # eighth to reach 2.0
+    m1.add_event(Note(pitch_name="E4", midi=64, start_time=2.0, duration=2.0, velocity=0.8))   # half to reach 4.0
+    score.add_measure(m1)
+
+    xml_output = score_to_musicxml(score)
+    print("Dotted quarter test XML output:")
+    print(xml_output)
+    print()
+    # Verify that the dotted quarter note is encoded as type=quarter with a dot
+    assert '<type>quarter</type>' in xml_output, "Missing quarter type for dotted quarter"
+    # Check for dot element (may be <dot/> or <dot />)
+    import re
+    assert re.search(r'<dot\s*/>', xml_output), "Missing dot for dotted quarter"
+    # Also verify that the duration value is correct: for divisions=4, quarter=4, dotted quarter = 6
+    assert '<duration>6</duration>' in xml_output, "Incorrect duration for dotted quarter (should be 6)"
+    print("Dotted quarter export test passed.")
+    print("XML snippet:")
+    # Extract and print the relevant note section for visual confirmation
+    import re
+    match = re.search(r'<note>.*?</note>', xml_output, re.DOTALL)
+    if match:
+        print(match.group(0))
+    print()
+
+
 if __name__ == "__main__":
     test_simple_melody()
     test_dotted_rhythms()
     test_sixteenth_notes()
     test_rests()
+    test_dotted_quarter_export()

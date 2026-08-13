@@ -15,8 +15,11 @@ from .score import Note, Measure
 # Mapping from quantized duration string to beats (quarter note beats)
 _DURATION_TO_BEATS = {
     "whole": 4.0,
+    "dotted half": 3.0,
     "half": 2.0,
+    "dotted quarter": 1.5,
     "quarter": 1.0,
+    "dotted eighth": 0.75,
     "eighth": 0.5,
     "sixteenth": 0.25,
 }

@@ -12,7 +12,11 @@ from pathlib import Path
 # Add the src directory to the path so we can import the score module
 # We do this only when the script is run directly (not when imported as a module)
 if __name__ == "__main__" and __package__ is None:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+    # We need to add the directory that contains the 'src' package to sys.path
+    # From script location: .../app/src/score/export_musicxml.py
+    # Go up two levels to get to .../app (which contains src)
+    path_to_add = os.path.join(os.path.dirname(__file__), '..', '..')
+    sys.path.insert(0, path_to_add)
 
 # Now we can import from the score package
 from src.score.musicxml_exporter import score_to_musicxml

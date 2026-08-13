@@ -16,6 +16,7 @@
                 <divisions>4</divisions>
                 <key>
                     <fifths>0</fifths>
+                    <mode>major</mode>
                 </key>
                 <time>
                     <beats>4</beats>
@@ -58,6 +59,7 @@
                 <divisions>4</divisions>
                 <key>
                     <fifths>0</fifths>
+                    <mode>major</mode>
                 </key>
                 <time>
                     <beats>3</beats>

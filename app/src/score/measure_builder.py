@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import List, Dict
 
-from score.score import Note, Measure
+from .score import Note, Measure
 
 
 # Mapping from quantized duration string to beats (quarter note beats)

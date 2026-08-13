@@ -14,14 +14,18 @@ from typing import List, Union
 from .score import Score, Measure, Note, Rest
 
 
-# Mapping of beat durations to MusicXML type and duration value (divisions=4)
-_DURATION_LOOKUP = {
-    0.25: (1, "16th"),
-    0.5: (2, "eighth"),
-    1.0: (4, "quarter"),
-    2.0: (8, "half"),
-    4.0: (16, "whole"),
+# Mapping of base beat durations to (duration_xml_per_beat, type_string) for divisions=4
+# This maps the base duration (without dots) to (duration_xml_per_beat, type_string)
+_BASE_DURATION_LOOKUP = {
+    0.25: (1, "16th"),   # sixteenth
+    0.5: (2, "eighth"),   # eighth
+    1.0: (4, "quarter"),  # quarter
+    2.0: (8, "half"),     # half
+    4.0: (16, "whole"),   # whole
 }
+
+# Supported durations including dotted ones (in beats)
+_SUPPORTED_DURATIONS = set(_BASE_DURATION_LOOKUP.keys()) | {0.75, 1.5, 3.0}  # dotted eighth, quarter, half
 
 # Default divisions (ticks per quarter note)
 _DIVISIONS = 4
@@ -57,12 +61,54 @@ def _pitch_name_to_musicxml(pitch_name: str):
 
 def _duration_to_xml(beats: float):
     """
-    Convert beat duration to (duration_xml, type_string) using _DURATION_LOOKUP.
-    Raises ValueError if duration not supported.
+    Convert beat duration to (duration_xml, type_string, dots_count).
+    Handles dotted durations by calculating the appropriate number of dots.
+
+    Args:
+        beats: Duration in beats
+
+    Returns:
+        Tuple of (duration_xml, type_string, dots_count) where:
+        - duration_xml: Integer duration units for MusicXML <duration> element
+        - type_string: String for MusicXML <type> element (e.g., "quarter")
+        - dots_count: Number of dots to add (0, 1, or 2)
+
+    Raises:
+        ValueError: If duration not supported
     """
-    if beats not in _DURATION_LOOKUP:
-        raise ValueError(f"Unsupported duration: {beats}. Supported: {list(_DURATION_LOOKUP.keys())}")
-    return _DURATION_LOOKUP[beats]
+    # Check if it's a base duration (no dots)
+    if beats in _BASE_DURATION_LOOKUP:
+        duration_xml, type_str = _BASE_DURATION_LOOKUP[beats]
+        return duration_xml, type_str, 0
+
+    # Check for dotted durations (base duration * 1.5)
+    # We consider a limited set of dotted durations as specified in the milestone
+    # Map from total beats to the base type string (the undotted duration)
+    dotted_candidates = {
+        0.75: "eighth",   # dotted eighth
+        1.5: "quarter",   # dotted quarter
+        3.0: "half",      # dotted half
+    }
+
+    if beats in dotted_candidates:
+        type_str = dotted_candidates[beats]
+        # Get the base duration for this type (e.g., for "eighth", base duration is 0.5)
+        base_beats = None
+        for duration_val, (duration_xml_base, type_name) in _BASE_DURATION_LOOKUP.items():
+            if type_name == type_str:
+                base_beats = duration_val
+                break
+        if base_beats is None:
+            raise ValueError(f"Internal error: could not find base duration for type {type_str}")
+
+        # For dotted notes, duration_xml = base_duration_xml * 1.5
+        duration_xml_base, _ = _BASE_DURATION_LOOKUP[base_beats]
+        duration_xml = int(duration_xml_base * 1.5)
+        return duration_xml, type_str, 1
+
+    # If we get here, the duration is not supported
+    supported = list(_BASE_DURATION_LOOKUP.keys()) + list(dotted_candidates.keys())
+    raise ValueError(f"Unsupported duration: {beats}. Supported: {supported}")
 
 
 def score_to_musicxml(score: Score) -> str:
@@ -109,10 +155,42 @@ def score_to_musicxml(score: Score) -> str:
             # Divisions
             divisions = ET.SubElement(attributes, "divisions")
             divisions.text = str(_DIVISIONS)
-            # Key (default C major: fifths=0)
+            # Key signature
             key = ET.SubElement(attributes, "key")
             fifths = ET.SubElement(key, "fifths")
-            fifths.text = "0"
+            mode = ET.SubElement(key, "mode")
+            # Try to get detected key from score, default to C major
+            detected_fifths = 0
+            detected_mode = "major"
+            try:
+                # Import here to avoid circular imports
+                from music.key_detection import detect_key_from_score
+                key_name, mode_str, confidence = detect_key_from_score(score)
+                # Convert key name to fifths
+                # Note names using sharps: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+                note_to_fifths = {
+                    "C": 0,
+                    "G": 1,
+                    "D": 2,
+                    "A": 3,
+                    "E": 4,
+                    "B": 5,
+                    "F#": 6,
+                    "C#": 7,
+                    "F": -1,
+                    "Bb": -2,
+                    "Eb": -3,
+                    "Ab": -4,
+                    "Db": -5,
+                    "Gb": -6,
+                }
+                detected_fifths = note_to_fifths.get(key_name, 0)
+                detected_mode = mode_str
+            except Exception:
+                # If key detection fails, default to C major
+                pass
+            fifths.text = str(detected_fifths)
+            mode.text = detected_mode
             # Time signature
             time = ET.SubElement(attributes, "time")
             beats = ET.SubElement(time, "beats")
@@ -145,11 +223,14 @@ def score_to_musicxml(score: Score) -> str:
                 octave_elem = ET.SubElement(pitch_elem, "octave")
                 octave_elem.text = str(octave)
                 # Duration
-                duration_xml, type_str = _duration_to_xml(event.duration)
+                duration_xml, type_str, dots_count = _duration_to_xml(event.duration)
                 duration_elem = ET.SubElement(note_elem, "duration")
                 duration_elem.text = str(duration_xml)
                 type_elem = ET.SubElement(note_elem, "type")
                 type_elem.text = type_str
+                # Add dots if needed
+                for _ in range(dots_count):
+                    dot_elem = ET.SubElement(note_elem, "dot")
                 # Voice and staff (default 1)
                 voice_elem = ET.SubElement(note_elem, "voice")
                 voice_elem.text = "1"
@@ -158,11 +239,14 @@ def score_to_musicxml(score: Score) -> str:
             elif isinstance(event, Rest):
                 rest_elem = ET.SubElement(measure_elem, "rest")
                 # Duration
-                duration_xml, type_str = _duration_to_xml(event.duration)
+                duration_xml, type_str, dots_count = _duration_to_xml(event.duration)
                 duration_elem = ET.SubElement(rest_elem, "duration")
                 duration_elem.text = str(duration_xml)
                 type_elem = ET.SubElement(rest_elem, "type")
                 type_elem.text = type_str
+                # Add dots if needed
+                for _ in range(dots_count):
+                    dot_elem = ET.SubElement(rest_elem, "dot")
                 # Voice and staff (default 1)
                 voice_elem = ET.SubElement(rest_elem, "voice")
                 voice_elem.text = "1"

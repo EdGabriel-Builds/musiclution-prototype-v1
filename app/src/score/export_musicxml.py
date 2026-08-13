@@ -15,8 +15,8 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Now we can import from the score package
-from score.musicxml_exporter import score_to_musicxml
-from score.score import Score, Measure, Note, Rest
+from src.score.musicxml_exporter import score_to_musicxml
+from src.score.score import Score, Measure, Note, Rest
 
 
 def create_sample_score() -> Score:

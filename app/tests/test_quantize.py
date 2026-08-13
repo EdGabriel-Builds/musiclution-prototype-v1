@@ -224,9 +224,13 @@ def test_quantize_duration_helper():
     assert quantize_duration(1.0) == "quarter"
     assert quantize_duration(0.5) == "eighth"
     assert quantize_duration(0.25) == "sixteenth"
+    # Test dotted durations
+    assert quantize_duration(3.0) == "dotted half"
+    assert quantize_duration(1.5) == "dotted quarter"
+    assert quantize_duration(0.75) == "dotted eighth"
 
     # Test rounding
     assert quantize_duration(0.3) == "sixteenth"  # closer to 0.25 than 0.5
     assert quantize_duration(0.4) == "eighth"     # 0.4 is closer to 0.5 than 0.25
-    # 0.75 is exactly between 0.5 and 1.0 -> tie; our implementation picks the first encountered (1.0 -> quarter)
-    assert quantize_duration(0.75) == "quarter"
+    # 0.75 is now explicitly supported as dotted eighth
+    assert quantize_duration(0.75) == "dotted eighth"

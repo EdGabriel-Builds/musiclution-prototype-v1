@@ -22,8 +22,11 @@ SECONDS_TO_BEATS_FACTOR = 60.0  # Beats per minute constant
 # Constants for duration quantization
 DURATION_MAP = [
     (4.0, "whole"),
+    (3.0, "dotted half"),
     (2.0, "half"),
+    (1.5, "dotted quarter"),
     (1.0, "quarter"),
+    (0.75, "dotted eighth"),
     (0.5, "eighth"),
     (0.25, "sixteenth"),
 ]
@@ -79,8 +82,11 @@ def quantize_duration(beat_duration: float) -> str:
 
     Supported note values (in beats):
         whole: 4.0
+        dotted half: 3.0
         half: 2.0
+        dotted quarter: 1.5
         quarter: 1.0
+        dotted eighth: 0.75
         eighth: 0.5
         sixteenth: 0.25
 
@@ -93,7 +99,8 @@ def quantize_duration(beat_duration: float) -> str:
     -------
     str
         String representation of the quantized note value:
-        "whole", "half", "quarter", "eighth", or "sixteenth".
+        "whole", "dotted half", "half", "dotted quarter", "quarter",
+        "dotted eighth", "eighth", or "sixteenth".
     """
     # Find the note value with the smallest absolute difference
     closest = min(DURATION_MAP, key=lambda x: abs(x[0] - beat_duration))

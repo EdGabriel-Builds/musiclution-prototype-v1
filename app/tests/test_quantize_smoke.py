@@ -106,7 +106,8 @@ def test_quantize_notes_api_contract(melody_dir):
         )
 
         # quantized_duration should be one of the allowed string values
-        allowed_durations = {"whole", "half", "quarter", "eighth", "sixteenth"}
+        allowed_durations = {"whole", "half", "quarter", "eighth", "sixteenth",
+                           "dotted half", "dotted quarter", "dotted eighth"}
         assert out_note["quantized_duration"] in allowed_durations, (
             f"quantized_duration must be one of {allowed_durations}, "
             f"got {out_note['quantized_duration']} in note {i}"

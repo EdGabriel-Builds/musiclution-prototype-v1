@@ -1,5 +1,4 @@
 """
-
 Estimates musical key using a scale membership scoring algorithm.
 
 For each possible major/minor key, pitch classes are compared against
@@ -15,12 +14,31 @@ from __future__ import annotations
 from typing import Iterable, Tuple, List
 from score.score import Note
 
-# Pitch class names using sharps
-NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+# Pitch class names using sharps (standard music theory)
+NOTE_NAMES_SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+# Pitch class names using flats (for display preference in flat keys)
+NOTE_NAMES_FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 
 # Intervals (in semitones) for major and natural minor scales
 MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11]
 MINOR_INTERVALS = [0, 2, 3, 5, 7, 8, 10]
+
+# Key signature fifths mapping for preferred spelling (positive = sharps, negative = flats)
+# Maps tonic (0=C, 1=C#/Db, etc.) to fifths value using preferred enharmonic spelling
+TONIC_TO_FIFTHS_PREFERRED = {
+    0: 0,   # C
+    1: -5,  # Db (prefer 5 flats over 7 sharps)
+    2: 2,   # D
+    3: -3,  # Eb (prefer 3 flats over 4 sharps)
+    4: 4,   # E
+    5: -1,  # F
+    6: -6,  # Gb (prefer 6 flats over 6 sharps when equal)
+    7: 1,   # G
+    8: -4,  # Ab
+    9: 3,   # A
+    10: -2, # Bb
+    11: 5   # B
+}
 
 
 def _scale_mask(tonic: int, intervals: List[int]) -> List[bool]:
@@ -33,7 +51,7 @@ def _scale_mask(tonic: int, intervals: List[int]) -> List[bool]:
     return mask
 
 
-def detect_key(notes: Iterable[Note]) -> Tuple[str, str, float]:
+def detect_key(notes: Iterable[Note]) -> Tuple[str, str, float, int]:
     """
     Estimate the key of a collection of notes.
 
@@ -44,14 +62,15 @@ def detect_key(notes: Iterable[Note]) -> Tuple[str, str, float]:
 
     Returns
     -------
-    tuple (key_name, mode, confidence)
-        key_name: e.g., 'C', 'C#', etc.
+    tuple (key_name, mode, confidence, fifths)
+        key_name: e.g., 'C', 'C#', 'Db', etc. (prefers flats for flat keys)
         mode: either 'major' or 'minor'
         confidence: a float between 0.0 and 1.0 indicating how confident we are
                     in the detection. This is the proportion of notes explained by
                     the winning scale (best_score / total), but 0.0 if there is a
                     tie for the highest score *before* tie-breaking (indicating
                     ambiguity between multiple keys).
+        fifths: number of sharps (+) or flats (-) in the key signature
     """
     # Count pitch-class occurrences and capture the first note's pitch class.
     pc_count = [0] * 12
@@ -85,7 +104,6 @@ def detect_key(notes: Iterable[Note]) -> Tuple[str, str, float]:
             best_mode = 'major'
         elif major_score == best_score:
             second_best = best_score
-            pass
         elif major_score > second_best:
             second_best = major_score
 
@@ -146,10 +164,36 @@ def detect_key(notes: Iterable[Note]) -> Tuple[str, str, float]:
     if confidence > 1.0:
         confidence = 1.0
 
-    return (NOTE_NAMES[best_tonic], best_mode, confidence)
+    # Calculate the correct fifths value based on tonic and mode
+    # For major keys, fifths is based directly on the tonic
+    # For minor keys, fifths is based on the relative major (up 3 semitones)
+    if best_mode == "major":
+        fifths = TONIC_TO_FIFTHS_PREFERRED[best_tonic]
+    else:  # minor
+        # Relative major is up 3 semitones (minor third) from minor tonic
+        relative_major_tonic = (best_tonic + 3) % 12
+        fifths = TONIC_TO_FIFTHS_PREFERRED[relative_major_tonic]
+
+    # Convert tonic to appropriate key name spelling
+    # Prefer flats for flat keys (negative fifths), sharps for sharp keys (positive fifths)
+    # C (0 fifths) can go either way, we'll use sharps by convention
+    key_name_sharps = NOTE_NAMES_SHARPS[best_tonic]
+    key_name_flats = NOTE_NAMES_FLATS[best_tonic]
+
+    if fifths < 0:
+        # Flat key: prefer flat spelling
+        key_name = key_name_flats
+    elif fifths > 0:
+        # Sharp key: prefer sharp spelling
+        key_name = key_name_sharps
+    else:
+        # C major/A minor: use sharp scripting by convention (C major)
+        key_name = key_name_sharps
+
+    return (key_name, best_mode, confidence, fifths)
 
 
-def detect_key_from_score(score) -> Tuple[str, str, float]:
+def detect_key_from_score(score) -> Tuple[str, str, float, int]:
     """
     Convenience function to detect key from a Score object.
 
@@ -160,7 +204,7 @@ def detect_key_from_score(score) -> Tuple[str, str, float]:
 
     Returns
     -------
-    tuple (key_name, mode, confidence)
+    tuple (key_name, mode, confidence, fifths)
     """
     # Extract all notes from the score (ignoring rests)
     notes = []

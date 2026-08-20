@@ -165,26 +165,7 @@ def score_to_musicxml(score: Score) -> str:
             try:
                 # Import here to avoid circular imports
                 from music.key_detection import detect_key_from_score
-                key_name, mode_str, confidence = detect_key_from_score(score)
-                # Convert key name to fifths
-                # Note names using sharps: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
-                note_to_fifths = {
-                    "C": 0,
-                    "G": 1,
-                    "D": 2,
-                    "A": 3,
-                    "E": 4,
-                    "B": 5,
-                    "F#": 6,
-                    "C#": 7,
-                    "F": -1,
-                    "Bb": -2,
-                    "Eb": -3,
-                    "Ab": -4,
-                    "Db": -5,
-                    "Gb": -6,
-                }
-                detected_fifths = note_to_fifths.get(key_name, 0)
+                key_name, mode_str, confidence, detected_fifths = detect_key_from_score(score)
                 detected_mode = mode_str
             except Exception:
                 # If key detection fails, default to C major

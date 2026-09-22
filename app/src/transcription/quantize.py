@@ -12,12 +12,14 @@ from typing import List, Dict
 
 import numpy as np
 
+
 # Constants for BPM estimation
 DEFAULT_BPM = 120.0
 MIN_INTERVAL_THRESHOLD = 1e-3
 BPM_CLAMP_MIN = 40.0
 BPM_CLAMP_MAX = 200.0
 SECONDS_TO_BEATS_FACTOR = 60.0  # Beats per minute constant
+
 
 # Constants for duration quantization
 DURATION_MAP = [
@@ -46,7 +48,7 @@ def estimate_bpm(notes: List[Dict]) -> float:
     Parameters
     ----------
     notes : list[dict]
-        List of note dictionaries as returned by :func:`detect_notes`.
+        List of note dictionaries as returned by detect_notes.
         Each dict must contain a "start" key (float seconds).
 
     Returns
@@ -60,19 +62,27 @@ def estimate_bpm(notes: List[Dict]) -> float:
 
     # Extract start times and sort them.
     starts = sorted(note["start"] for note in notes)
+
     # Compute inter-onset intervals.
     ioi = np.diff(starts)
+
     # Filter out zero or near-zero intervals (e.g., simultaneous notes).
     ioi = ioi[ioi > MIN_INTERVAL_THRESHOLD]
+
     if len(ioi) == 0:
         return DEFAULT_BPM
+
     median_ioi = float(np.median(ioi))
+
     # Avoid division by zero or extremely small values.
     if median_ioi <= 0:
         return DEFAULT_BPM
+
     bpm = SECONDS_TO_BEATS_FACTOR / median_ioi
+
     # Clamp to a reasonable range to avoid absurd values.
     bpm = max(BPM_CLAMP_MIN, min(BPM_CLAMP_MAX, bpm))
+
     return bpm
 
 
@@ -98,12 +108,14 @@ def quantize_duration(beat_duration: float) -> str:
     Returns
     -------
     str
-        String representation of the quantized note value:
-        "whole", "dotted half", "half", "dotted quarter", "quarter",
-        "dotted eighth", "eighth", or "sixteenth".
+        String representation of the quantized note value.
     """
-    # Find the note value with the smallest absolute difference
-    closest = min(DURATION_MAP, key=lambda x: abs(x[0] - beat_duration))
+    # Find the note value with the smallest absolute difference.
+    closest = min(
+        DURATION_MAP,
+        key=lambda x: abs(x[0] - beat_duration),
+    )
+
     return closest[1]
 
 
@@ -114,60 +126,61 @@ def quantize_notes(
     """
     Quantize note onsets and durations to a musical grid.
 
-    This function returns a new list of note dictionaries with the same fields
-    as the input, plus three additional fields for beat-aligned timing:
+    This function returns a new list of note dictionaries with the same
+    fields as the input, plus three additional fields for beat-aligned timing:
+
         - beat_start: start time in beats (computed using BPM)
         - beat_duration: duration in beats (computed using BPM)
-        - quantized_duration: quantized duration in beats as a string (
-            "whole", "half", "quarter", "eighth", or "sixteenth")
+        - quantized_duration: quantized duration as a string
 
-    If ``bpm`` is provided, that value is used; otherwise, a simple BPM
-    estimate is derived from the note onsets via :func:`estimate_bpm`.
+    If ``bpm`` is provided, that value is used; otherwise, a BPM estimate
+    is derived from the note onsets via estimate_bpm.
 
-    The actual quantization logic (e.g., rounding to the nearest grid)
-    is applied only to the duration for now. The start time is converted
-    to beats but not quantized.
+    The actual quantization logic is applied to the duration for now.
+    The start time is converted to beats but not quantized.
 
     Parameters
     ----------
     notes : list[dict]
-        List of note dictionaries as returned by :func:`detect_notes`.
-        Each dict must contain at least the keys:
-        "pitch_name", "midi", "start", "end", "duration", "amplitude".
+        List of note dictionaries as returned by detect_notes.
+
     bpm : float | None, optional
-        Beats per minute for quantization grid. If None, a BPM estimate
-        is computed from the note onsets.
+        Beats per minute. If None, a BPM estimate is computed.
 
     Returns
     -------
     list[dict]
-        New list of note dictionaries with added fields:
-        "beat_start", "beat_duration", "quantized_duration".
-        The original input list is not modified.
+        New list of note dictionaries with added:
+        "beat_start", "beat_duration", and "quantized_duration".
 
     Notes
     -----
-    - The function does not modify the input ``notes`` list.
-    - All original fields are preserved exactly as-is.
-    - The three new fields are added to each note dictionary.
-    - ``quantized_duration`` is a string representing the quantized note value.
+    - The input ``notes`` list is not modified.
+    - All original fields are preserved.
+    - ``quantized_duration`` represents the nearest supported note value.
     """
     # Use provided BPM or estimate one from the notes.
     if bpm is None:
         bpm = estimate_bpm(notes)
+
     # Convert seconds to beats: beats = seconds * (BPM / 60).
     beats_per_second = bpm / SECONDS_TO_BEATS_FACTOR
-
     quantized: List[Dict] = []
+
     for note in notes:
-        # Create a shallow copy of the note dictionary to avoid mutating input
+        # Create a shallow copy of the note dictionary to avoid mutating input.
         new_note = note.copy()
+
         # Convert start and duration to beats.
         raw_beat_start = float(note["start"]) * beats_per_second
         raw_beat_duration = float(note["duration"]) * beats_per_second
+
         new_note["beat_start"] = raw_beat_start
         new_note["beat_duration"] = raw_beat_duration
+
         # Quantize the duration to the nearest musical note value.
         new_note["quantized_duration"] = quantize_duration(raw_beat_duration)
+
         quantized.append(new_note)
+
     return quantized

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<style>
+body { font-family: Georgia, serif; margin: 40px; }
+h1, h2, h3 { color: #2c3e50; }
+.pass { color: #27ae60; }
+.fail { color: #e74c3c; }
+.warning { color: #f39c12; }
+pre { background: #ecf0f1; padding: 10px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #bdc3c7; padding: 8px; text-align: left; }
+th { background-color: #ecf0f1; }
+</style>
+</head>
+<body>
+<ul><h1>Melody_002 v0.1 Validation Report</li>
+</li>
+#<h1>1. Test Identification</li>
+<li><strong>Melody<strong>: melody_002</li>
+<li><strong>Source<strong>: `app/tests/melodies/melody_002/Eb_major/audio.wav`</li>
+<li><strong>BPM used for quantization<strong>: 120</li>
+<li><strong>Purpose<strong>: v0.1 validation and regression documentation</li>
+</li>
+#<h1>2. Results that PASS</li>
+</li>
+##<h1>Raw Note Detection</li>
+<li>✅ Completed successfully</li>
+<li>Detected 19 raw notes from audio</li>
+<li>First notes: D#4 (MIDI 63), G4, A#4, G#4, G4...</li>
+</li>
+##<h1>Enharmonic Pitch Class Handling</li>
+<li>✅ Handled correctly at the key-detection level</li>
+<li>MIDI 63 notes appropriately labeled as D#4/Eb4 equivalents</li>
+<li>No unexpected pitch errors introduced</li>
+</li>
+##<h1>Key Detection</li>
+<li>✅ Key detected as <strong>Eb major<strong></li>
+<li>✅ Mode: <strong>major<strong></li>
+<li>✅ Fifths detected as <strong>-3<strong> (correct for Eb major)</li>
+</li>
+##<h1>Regression Verification</li>
+<li>✅ D major and E major sharp-key regression cases remain correct</li>
+<li>Verified via existing test suite: `app/tests/test_key_detection.py`</li>
+</li>
+##<h1>Quantization</li>
+<li>✅ Completes successfully with BPM=120.0</li>
+<li>Produced 18 quantized notes after cleanup</li>
+<li>Sample quantizations:</li>
+  <li>D#4: beat_start=0.02, beat_duration=0.98 → quarter</li>
+  <li>G4: beat_start=1.00, beat_duration=1.00 → quarter</li>
+  <li>A#4: beat_start=2.00, beat_duration=0.60 → eighth</li>
+  <li>Final D#4: beat_start=14.01, beat_duration=4.23 → whole</li>
+</li>
+##<h1>Measure Validation (Partial)</li>
+<li>✅ Measures 1–4 each contain exactly 4 beats</li>
+  <li>Measure 1: 4.000 beats (6 notes)</li>
+  <li>Measure 2: 4.000 beats (3 notes)</li>
+  <li>Measure 3: 4.000 beats (6 notes)</li>
+  <li>Measure 4: 4.000 beats (3 notes)</li>
+</li>
+#<h1>3. Accepted Behavior</li>
+</li>
+##<h1>Remaining Post-Cleanup Overlaps</li>
+The following three overlaps remain after monophonic cleanup:</li>
+1. A#4[2] ↔ G#4[3]: <strong>46 ms<strong></li>
+2. C5[7] ↔ A#4[8]: <strong>46 ms<strong></li>
+3. G4[14] ↔ F4[15]: <strong>23 ms<strong></li>
+</li>
+<strong>Acceptance Justification<strong>: These overlaps are below the existing 50 ms timing-jitter threshold used in the cleanup algorithm (see `debug_monophonic_cleanup.py` line 54: `if overlap_duration < 0.05:`). Therefore, they are correctly accepted as timing jitter rather than treated as cleanup failures for v0.1.</li>
+</li>
+#<h1>4. Known Failure</li>
+</li>
+##<h1>Measure Count Deviation</li>
+<li><strong>Expected<strong>: Exactly 4 measures of 4/4 time signature</li>
+<li><strong>Actual<strong>: 5 measures produced</li>
+<li><strong>Measure Details<strong>:</li>
+  <li>Measures 1–4: 4.000 beats each ✓</li>
+  <li>Measure 5: 2.000 beats ❌</li>
+</li>
+##<h1>Root Cause Analysis</li>
+The fifth measure contains only a trailing D#4/Eb whole note:</li>
+<li>Quantized as approximately <strong>4.23-beat/whole-note<strong> event</li>
+<li>Begins around beat 14.01</li>
+<li>Extends to approximately beat 18.24</li>
+<li>Crosses the measure-4 boundary (which ends at beat 16.00)</li>
+<li>Creates the extra 2-beat tail in measure 5 (beats 16.00-18.00)</li>
+</li>
+<strong>Important Distinction<strong>: The `build_measures()` function is behaving consistently with its input and is <strong>not currently identified as the root cause<strong>. The upstream issue is the overlong final-note duration produced by the transcription/cleanup pipeline.</li>
+</li>
+#<h1>5. Scope Decision</li>
+</li>
+##<h1>No Additional Final-Note Heuristic</li>
+At this time, <strong>no additional final-note heuristic is being added<strong>. Specifically, we are <strong>not implementing<strong> rules such as:</li>
+<li>`final duration = previous duration × 4`</li>
+<li>Any other melody-specific duration cap</li>
+</li>
+<strong>Reasoning<strong>: Such rules risk overfitting to melody_002 rather than representing a general v0.1 transcription principle. The current approach maintains algorithmic generality while documenting this known limitation for future investigation.</li>
+</li>
+#<h1>6. v0.1 Status Summary</li>
+</li>
+##<h1>✅ Enharmonic Key Spelling: VERIFIED AND SUCCESSFUL</li>
+<li>Key detection correctly identifies Eb major</li>
+<li>Fifths correctly reported as -3</li>
+<li>No regression in sharp-key cases (D major, E major)</li>
+</li>
+##<h1>⚠️ Final-Note Duration/Reverb Handling: KNOWN LIMITATION UNDER INVESTIGATION</li>
+<li>Overlong final note causes measure count deviation</li>
+<li>Understood as upstream transcription/cleanup issue</li>
+<li>Not attributable to measure builder</li>
+<li>Requires further study of note offset detection</li>
+</li>
+##<h1>🎯 Measure Builder: NOT CURRENTLY CONSIDERED THE ROOT CAUSE</li>
+<li>Functions correctly given its input</li>
+<li>Measure validation failure stems from input characteristics</li>
+<li>No measure builder modification indicated at this time</li>
+</li>
+##<h1>📊 Overall Validation Status</li>
+<strong>Do not claim the entire melody passes validation.<strong> Instead:</li>
+<li>Enharmonic key spelling: <strong>SUCCESSFUL<strong></li>
+<li>Final-note duration handling: <strong>KNOWN LIMITATION<strong></li>
+<li>Measure builder: <strong>NOT AT FAULT<strong></li>
+<li>Regression protection: <strong>MAINTAINED<strong></li>
+</li>
+---</li>
+*Report generated using existing observation harness: `debug_monophonic_cleanup.py`*</li>
+*No production code modified during validation*</li>
+*Documentation created: `melody_002_v0.1_validation.md`*</ul>
+</body>
+</html>

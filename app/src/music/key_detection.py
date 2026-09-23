@@ -176,7 +176,7 @@ def detect_key(notes: Iterable[Note]) -> Tuple[str, str, float, int]:
 
     # Convert tonic to appropriate key name spelling
     # Prefer flats for flat keys (negative fifths), sharps for sharp keys (positive fifths)
-    # C (0 fifths) can go either way, we'll use sharps by convention
+    # C (0 fifths) can go either way, we'll use sharp scripting by convention (C major)
     key_name_sharps = NOTE_NAMES_SHARPS[best_tonic]
     key_name_flats = NOTE_NAMES_FLATS[best_tonic]
 
@@ -213,3 +213,84 @@ def detect_key_from_score(score) -> Tuple[str, str, float, int]:
             if isinstance(event, Note):
                 notes.append(event)
     return detect_key(notes)
+
+
+def get_fifths_from_key_name_mode(key_name: str, mode: str) -> int:
+    """
+    Convert a key name and mode to fifths value using the same logic as detect_key.
+
+    Parameters
+    ----------
+    key_name : str
+        Key name (e.g., 'C', 'C#', 'Db', etc.)
+    mode : str
+        Either 'major' or 'minor'
+
+    Returns
+    -------
+    int
+        Number of sharps (+) or flats (-) in the key signature
+    """
+    # Find tonic index from key name
+    try:
+        tonic = NOTE_NAMES_SHARPS.index(key_name)
+    except ValueError:
+        try:
+            tonic = NOTE_NAMES_FLATS.index(key_name)
+        except ValueError:
+            raise ValueError(f"Invalid key name: {key_name}")
+
+    # Calculate fifths based on mode
+    if mode == "major":
+        return TONIC_TO_FIFTHS_PREFERRED[tonic]
+    else:  # minor
+        # Relative major is up 3 semitones (minor third) from minor tonic
+        relative_major_tonic = (tonic + 3) % 12
+        return TONIC_TO_FIFTHS_PREFERRED[relative_major_tonic]
+
+
+def apply_key_aware_spelling(quantized_notes: List[Dict], fifths: int) -> List[Dict]:
+    """
+    Apply key-aware enharmonic spelling to quantized notes.
+
+    Preserves all fields except pitch_name, which is respelled according to
+    the key signature's preferred enharmonic spelling.
+
+    Parameters
+    ----------
+    quantized_notes : List[Dict]
+        List of note dictionaries as returned by quantize_notes.
+        Each dict must contain at least the keys:
+        "pitch_name", "midi", "beat_start", "beat_duration", "quantized_duration", "amplitude".
+    fifths : int
+        Key signature fifths (positive=sharps, negative=flats).
+
+    Returns
+    -------
+    List[Dict]
+        New list of note dictionaries with respelled pitch_name.
+        All other fields are preserved exactly.
+        Input dictionaries are not mutated.
+    """
+    # Choose spelling preference based on key signature
+    if fifths < 0:
+        note_names = NOTE_NAMES_FLATS   # Flat keys: prefer flats
+    elif fifths > 0:
+        note_names = NOTE_NAMES_SHARPS  # Sharp keys: prefer sharps
+    else:
+        note_names = NOTE_NAMES_SHARPS  # C major: sharp spelling by convention
+
+    result = []
+    for note_dict in quantized_notes:
+        # Create shallow copy to avoid mutating input
+        new_note = note_dict.copy()
+
+        # Respell the pitch name using key-appropriate table
+        midi_number = new_note["midi"]
+        note_index = midi_number % 12
+        octave = (midi_number // 12) - 1
+        new_note["pitch_name"] = f"{note_names[note_index]}{octave}"
+
+        result.append(new_note)
+
+    return result

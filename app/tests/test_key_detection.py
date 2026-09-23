@@ -13,7 +13,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from music.key_detection import detect_key, detect_key_from_score
+from music.key_detection import detect_key, detect_key_from_score, apply_key_aware_spelling, get_fifths_from_key_name_mode
 from score.score import Note, Measure, Score, Rest
 
 
@@ -222,3 +222,199 @@ def test_sharp_key_detection():
         assert mode == "major", f"{description}: Expected major mode"
         assert key_name == root_name, f"{description}: Expected key name '{root_name}', got '{key_name}'"
         assert fifths == expected_fifths, f"{description}: Expected fifths={expected_fifths}, got {fifths}"
+
+
+def test_get_fifths_from_key_name_mode():
+    """Test conversion of key name and mode to fifths."""
+    test_cases = [
+        ("C", "major", 0),
+        ("C", "minor", -3),   # C minor: relative major is Eb (3) -> -3
+        ("Db", "major", -5),
+        ("Db", "minor", 4),   # Db minor: relative major is E (4) -> 4
+        ("D", "major", 2),
+        ("D", "minor", -1),   # D minor: relative major is F (5) -> -1
+        ("Eb", "major", -3),
+        ("Eb", "minor", -6),  # Eb minor: relative major is Gb (6) -> -6
+        ("E", "major", 4),
+        ("E", "minor", 1),    # E minor: relative major is G (7) -> 1
+        ("F", "major", -1),
+        ("F", "minor", -4),   # F minor: relative major is Ab (8) -> -4
+        ("Gb", "major", -6),
+        ("Gb", "minor", 3),   # Gb minor: relative major is A (9) -> 3
+        ("G", "major", 1),
+        ("G", "minor", -2),   # G minor: relative major is Bb (10) -> -2
+        ("Ab", "major", -4),
+        ("Ab", "minor", 5),   # Ab minor: relative major is B (11) -> 5
+        ("A", "major", 3),
+        ("A", "minor", 0),    # A minor: relative major is C (0) -> 0
+        ("Bb", "major", -2),
+        ("Bb", "minor", -5),  # Bb minor: relative major is Db (1) -> -5
+        ("B", "major", 5),
+        ("B", "minor", 2),    # B minor: relative major is D (2) -> 2
+    ]
+    for key_name, mode, expected in test_cases:
+        assert get_fifths_from_key_name_mode(key_name, mode) == expected
+
+
+def test_apply_key_aware_spelling():
+    """Test the key-aware pitch spelling function."""
+    # Test data: (midi, input_pitch_name, expected_pitch_name_for_fifths)
+    test_cases = [
+        # Eb major (fifths = -3)
+        (60, "C4", "C4"),    # natural
+        (61, "C#4", "Db4"),  # sharp -> flat
+        (62, "D4", "D4"),    # natural
+        (63, "D#4", "Eb4"),  # sharp -> flat
+        (64, "E4", "E4"),    # natural
+        (65, "F4", "F4"),    # natural
+        (66, "F#4", "Gb4"),  # sharp -> flat
+        (67, "G4", "G4"),    # natural
+        (68, "G#4", "Ab4"),  # sharp -> flat
+        (69, "A4", "A4"),    # natural
+        (70, "A#4", "Bb4"),  # sharp -> flat
+        (71, "B4", "B4"),    # natural
+
+        # D major (fifths = 2)
+        (60, "C4", "C4"),    # natural
+        (61, "C#4", "C#4"),  # sharp -> sharp (preferred)
+        (61, "Db4", "C#4"),  # flat -> sharp
+        (62, "D4", "D4"),    # natural
+        (63, "D#4", "D#4"),  # sharp -> sharp (preferred)
+        (63, "Eb4", "D#4"),  # flat -> sharp
+        (64, "E4", "E4"),    # natural
+        (65, "F4", "F4"),    # natural
+        (66, "F#4", "F#4"),  # sharp -> sharp (preferred)
+        (66, "Gb4", "F#4"),  # flat -> sharp
+        (67, "G4", "G4"),    # natural
+        (68, "G#4", "G#4"),  # sharp -> sharp (preferred)
+        (69, "A4", "A4"),    # natural
+        (70, "A#4", "A#4"),  # sharp -> sharp (preferred)
+        (71, "B4", "B4"),    # natural
+
+        # C major (fifths = 0) - sharp spelling by convention
+        (60, "C4", "C4"),
+        (61, "C#4", "C#4"),
+        (61, "Db4", "C#4"),  # flat -> sharp (convention)
+        (62, "D4", "D4"),
+        (63, "D#4", "D#4"),
+        (63, "Eb4", "D#4"),  # flat -> sharp (convention)
+        (64, "E4", "E4"),
+        (65, "F4", "F4"),
+        (66, "F#4", "F#4"),  # Fixed: was missing comma
+        (66, "Gb4", "F#4"),  # Fixed: was missing comma - flat -> sharp (convention)
+        (67, "G4", "G4"),
+        (68, "G#4", "G#4"),
+        (69, "A4", "A4"),    # Fixed: was missing comma
+        (70, "A#4", "A#4"),  # Fixed: was missing comma
+        (70, "Bb4", "A#4"),  # Fixed: was missing comma - flat -> sharp (convention)
+        (71, "B4", "B4"),
+    ]
+
+    for midi, input_name, expected in test_cases:
+        # Determine the appropriate fifths for the test case
+        # We'll test with the specific fifths values we care about
+        pass
+
+    # Instead, let's test by fifths value directly
+    # Eb major (fifths = -3)
+    eb_test_notes = [
+        {"midi": 60, "pitch_name": "C4"},
+        {"midi": 61, "pitch_name": "C#4"},
+        {"midi": 62, "pitch_name": "D4"},
+        {"midi": 63, "pitch_name": "D#4"},
+        {"midi": 64, "pitch_name": "E4"},
+        {"midi": 65, "pitch_name": "F4"},
+        {"midi": 66, "pitch_name": "F#4"},
+        {"midi": 67, "pitch_name": "G4"},
+        {"midi": 68, "pitch_name": "G#4"},
+        {"midi": 69, "pitch_name": "A4"},
+        {"midi": 70, "pitch_name": "A#4"},
+        {"midi": 71, "pitch_name": "B4"},
+    ]
+    eb_result = apply_key_aware_spelling(eb_test_notes, -3)
+    expected_eb = ["C4", "Db4", "D4", "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4"]
+    actual_eb = [note["pitch_name"] for note in eb_result]
+    assert actual_eb == expected_eb, f"Eb major spelling failed:\nExpected: {expected_eb}\nActual:   {actual_eb}"
+
+    # D major (fifths = 2)
+    d_test_notes = [
+        {"midi": 60, "pitch_name": "C4"},
+        {"midi": 61, "pitch_name": "C#4"},
+        {"midi": 62, "pitch_name": "D4"},
+        {"midi": 63, "pitch_name": "D#4"},
+        {"midi": 64, "pitch_name": "E4"},
+        {"midi": 65, "pitch_name": "F4"},
+        {"midi": 66, "pitch_name": "F#4"},
+        {"midi": 67, "pitch_name": "G4"},
+        {"midi": 68, "pitch_name": "G#4"},
+        {"midi": 69, "pitch_name": "A4"},
+        {"midi": 70, "pitch_name": "A#4"},
+        {"midi": 71, "pitch_name": "B4"},
+    ]
+    d_result = apply_key_aware_spelling(d_test_notes, 2)
+    expected_d = ["C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4"]
+    actual_d = [note["pitch_name"] for note in d_result]
+    assert actual_d == expected_d, f"D major spelling failed:\nExpected: {expected_d}\nActual:   {actual_d}"
+
+    # C major (fifths = 0) - sharp spelling by convention
+    # Test each MIDI once, with both sharp and flat inputs where applicable
+    c_test_notes = [
+        {"midi": 60, "pitch_name": "C4"},
+        {"midi": 61, "pitch_name": "C#4"},
+        {"midi": 61, "pitch_name": "Db4"},  # Test flat input for C#
+        {"midi": 62, "pitch_name": "D4"},
+        {"midi": 63, "pitch_name": "D#4"},
+        {"midi": 63, "pitch_name": "Eb4"},  # Test flat input for D#
+        {"midi": 64, "pitch_name": "E4"},
+        {"midi": 65, "pitch_name": "F4"},
+        {"midi": 66, "pitch_name": "F#4"},
+        {"midi": 66, "pitch_name": "Gb4"},  # Test flat input for F#
+        {"midi": 67, "pitch_name": "G4"},
+        {"midi": 68, "pitch_name": "G#4"},
+        {"midi": 68, "pitch_name": "Ab4"},  # Test flat input for G#
+        {"midi": 69, "pitch_name": "A4"},
+        {"midi": 70, "pitch_name": "A#4"},
+        {"midi": 70, "pitch_name": "Bb4"},  # Test flat input for A#
+        {"midi": 71, "pitch_name": "B4"},
+    ]
+    c_result = apply_key_aware_spelling(c_test_notes, 0)
+    # For C major (fifths=0), we use sharp spelling
+    expected_c = [
+        "C4",    # 60
+        "C#4",   # 61 from C#4
+        "C#4",   # 61 from Db4 -> C#4
+        "D4",    # 62
+        "D#4",   # 63
+        "D#4",   # 63 from Eb4 -> D#4
+        "E4",    # 64
+        "F4",    # 65
+        "F#4",   # 66
+        "F#4",   # 66 from Gb4 -> F#4
+        "G4",    # 67
+        "G#4",   # 68
+        "G#4",   # 68 from Ab4 -> G#4
+        "A4",    # 69
+        "A#4",   # 70
+        "A#4",   # 70 from Bb4 -> A#4
+        "B4",    # 71
+    ]
+    actual_c = [note["pitch_name"] for note in c_result]
+    assert actual_c == expected_c, f"C major spelling failed:\nExpected: {expected_c}\nActual:   {actual_c}"
+
+    # Verify that MIDI values and other fields are preserved
+    original_notes = [
+        {"midi": 63, "pitch_name": "D#4", "beat_start": 1.0, "beat_duration": 2.0, "quantized_duration": "half", "amplitude": 0.8, "extra_field": "preserved"}
+    ]
+    result = apply_key_aware_spelling(original_notes, -3)
+    assert len(result) == 1
+    assert result[0]["midi"] == 63  # MIDI preserved
+    assert result[0]["pitch_name"] == "Eb4"  # Respelled
+    assert result[0]["beat_start"] == 1.0  # Timing preserved
+    assert result[0]["beat_duration"] == 2.0  # Duration preserved
+    assert result[0]["quantized_duration"] == "half"  # Quantization preserved
+    assert result[0]["amplitude"] == 0.8  # Amplitude preserved
+    assert result[0]["extra_field"] == "preserved"  # Extra fields preserved
+    assert result[0] is not original_notes[0]  # New object (shallow copy)
+
+    # Verify input is not mutated
+    assert original_notes[0]["pitch_name"] == "D#4"  # Input unchanged

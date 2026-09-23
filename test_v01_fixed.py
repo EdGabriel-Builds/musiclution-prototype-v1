@@ -14,7 +14,7 @@ from transcription.quantize import quantize_notes
 from score.measure_builder import build_measures
 from score.score import Score, Note
 from score.musicxml_exporter import score_to_musicxml
-from music.key_detection import detect_key
+from music.key_detection import detect_key, apply_key_aware_spelling
 
 def run_melody_test(melody_name, wav_path, expected_key=None):
     """Test a single melody and return detailed results."""
@@ -39,7 +39,7 @@ def run_melody_test(melody_name, wav_path, expected_key=None):
     print(f"\n[1.5] Applying monophonic cleanup...")
     cleaned = cleanup_monophonic(detected, max_voices=1)
     print(f"   After cleanup: {len(cleaned)} notes")
-    
+
     # Show overlap info
     from transcription.monophonic_cleanup import detect_overlaps
     overlaps_before = detect_overlaps(detected)
@@ -112,9 +112,23 @@ def run_melody_test(melody_name, wav_path, expected_key=None):
         print(f"   Using test override: {expected_key}")
         key_name, mode, confidence = expected_key.split()[0], expected_key.split()[1], 1.0
 
+    # Compute the effective fifths for the key we are using (after override)
+    from music.key_detection import get_fifths_from_key_name_mode
+    effective_fifths = get_fifths_from_key_name_mode(key_name, mode)
+    print(f"   Effective key signature fifths: {effective_fifths}")
+
+    # Step 3.5: Apply key-aware pitch spelling (NEW for v0.1)
+    print(f"\n[3.5] Applying key-aware pitch spelling...")
+    key_aware_quantized = apply_key_aware_spelling(quantized, effective_fifths)
+    print(f"   Applied spelling to {len(key_aware_quantized)} notes")
+    # Show first few note names after spelling
+    print("   First 5 notes after spelling:")
+    for i, note in enumerate(key_aware_quantized[:5]):
+        print(f"     {i+1}. {note['pitch_name']} (MIDI {note['midi']})")
+
     # Step 4: Build measures
     print(f"\n[4] Building measures...")
-    measures = build_measures(quantized)
+    measures = build_measures(key_aware_quantized)
     print(f"   Built {len(measures)} measures")
 
     # Validate measure durations (each should be exactly 4.0 beats for 4/4)

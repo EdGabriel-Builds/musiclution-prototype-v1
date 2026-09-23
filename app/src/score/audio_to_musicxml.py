@@ -5,7 +5,6 @@ Usage:
 If output_base is omitted, uses "output".
 Exports to <output_base>.musicxml and attempts to create <output_base>.pdf via MuseScore CLI.
 """
-
 import sys
 import os
 from pathlib import Path
@@ -20,6 +19,7 @@ from transcription.quantize import quantize_notes
 from score.measure_builder import build_measures
 from score.score import Score
 from score.musicxml_exporter import score_to_musicxml
+from music.key_detection import detect_key, apply_key_aware_spelling, get_fifths_from_key_name_mode
 import subprocess
 
 
@@ -50,13 +50,40 @@ def main(argv=None):
     quantized = quantize_notes(detected)  # BPM estimated internally
     print(f"   Quantized {len(quantized)} notes.")
 
-    # Step 3: Build measures (assumes 4/4 time signature)
-    print("[3/4] Building measures (4/4) ...")
-    measures = build_measures(quantized)
+    # Step 3: Key detection
+    print("[3/4] Detecting key ...")
+    # Build Note objects for key detection (using original detected notes for more data)
+    from score.score import Note
+    notes_for_key = []
+    for d in detected:
+        note = Note(
+            pitch_name=d['pitch_name'],
+            midi=d['midi'],
+            start_time=d['start'],
+            duration=d['duration'],
+            velocity=d['amplitude']
+        )
+        notes_for_key.append(note)
+
+    key_name, mode, confidence, _ = detect_key(notes_for_key)
+    print(f"   Detected key: {key_name} {mode} (confidence: {confidence:.3f})")
+
+    # Compute effective fifths for the detected key
+    effective_fifths = get_fifths_from_key_name_mode(key_name, mode)
+    print(f"   Effective key signature fifths: {effective_fifths}")
+
+    # Step 3.5: Apply key-aware pitch spelling
+    print("[3.5/4] Applying key-aware pitch spelling ...")
+    key_aware_quantized = apply_key_aware_spelling(quantized, effective_fifths)
+    print(f"   Applied spelling to {len(key_aware_quantized)} notes.")
+
+    # Step 4: Build measures (assumes 4/4 time signature)
+    print("[4/4] Building measures (4/4) ...")
+    measures = build_measures(key_aware_quantized)
     print(f"   Built {len(measures)} measures.")
 
-    # Step 4: Create Score and add measures
-    print("[4/4] Assembling Score and exporting MusicXML ...")
+    # Step 5: Create Score and add measures
+    print("[5/5] Assembling Score and exporting MusicXML ...")
     score = Score(title=f"Transcription of {Path(wav_path).name}", composer="Musiclution")
     for m in measures:
         score.add_measure(m)
